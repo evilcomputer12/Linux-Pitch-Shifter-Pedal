@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "oled.h": "c",
+        "scrollphat.h": "c",
+        "ssd1306.h": "c",
+        "i2c-dev.h": "c",
+        "linux_i2c.h": "c",
+        "wiringpii2c.h": "c"
+    }
+}
