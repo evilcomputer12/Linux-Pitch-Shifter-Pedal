@@ -5,6 +5,12 @@
         "ssd1306.h": "c",
         "i2c-dev.h": "c",
         "linux_i2c.h": "c",
-        "wiringpii2c.h": "c"
+        "wiringpii2c.h": "c",
+        "smbpitchshift.h": "c",
+        "sola.h": "c",
+        "math.h": "c",
+        "ssd1306_i2c.h": "c",
+        "soundtouch.h": "c",
+        "stdint.h": "c"
     }
 }

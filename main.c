@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include "smbPitchShift.h"  // Include your pitch-shifting code
 #include "ssd1306_i2c.h"
+#include "soundtouch_wrapper.h"  // Include SoundTouch wrapper
 
 #define SAMPLE_RATE 44100
 #define FRAMES_PER_BUFFER 512
@@ -18,7 +19,6 @@ volatile int counter = 0;  // Counter for logical clicks
 unsigned int clickCount = 0;         // Counter for physical clicks
 float pitchShiftRatio = 1.0f;        // Variable to hold pitch shift ratio
 
-
 // Structure to store audio data between input and output
 typedef struct {
     float pitchShift;
@@ -28,6 +28,7 @@ typedef struct {
     float inBuffer[FRAMES_PER_BUFFER];
     float outBuffer[FRAMES_PER_BUFFER];
     int stop;  // Flag to indicate when to stop
+    SoundTouch *soundTouch;  // Add SoundTouch instance here
 } pitchShiftData;
 
 // Rotary encoder handling function
@@ -69,7 +70,7 @@ void updateSemitoneShift() {
     if(counter != lastCounter){
         // Serial.println(counter);
         lastCounter = counter;
-        pitchShiftRatio = powf(2.0f, -(float)counter / 12.0f);
+        // pitchShiftRatio = powf(2.0f, -(float)counter / 12.0f);
         char text[50];    // Buffer to hold the formatted string
 
         // Format the string with the semitone shift value
@@ -89,7 +90,7 @@ void updateSemitoneShift() {
     // Add a small delay to prevent excessive loop speed
     delay(1);
 }
-      
+
 // Callback function for audio processing
 static int pitchShiftCallback(const void *inputBuffer, void *outputBuffer, unsigned long framesPerBuffer,
                               const PaStreamCallbackTimeInfo* timeInfo,
@@ -103,18 +104,22 @@ static int pitchShiftCallback(const void *inputBuffer, void *outputBuffer, unsig
         return paComplete;  // Signal to stop the stream
     }
 
-    // Perform pitch shifting using smbPitchShift with the updated pitchShiftRatio
-    smbPitchShift(pitchShiftRatio, framesPerBuffer, data->fftFrameSize, data->osamp, data->sampleRate, in, out);
+    // Set the pitch shift ratio for the SoundTouch instance
+    SoundTouch_setPitchSemiTones(data->soundTouch, -counter);
+    
+    // Process input samples through SoundTouch
+    SoundTouch_putSamples(data->soundTouch, in, framesPerBuffer);
+    int numReceived = SoundTouch_receiveSamples(data->soundTouch, out, framesPerBuffer);
+
+    // Fill output buffer
+    for (int i = 0; i < numReceived; ++i) {
+        out[i] = out[i];  // Copy processed samples to output buffer
+    }
 
     return paContinue;
 }
 
-// Signal handler for SIGINT
-void signalHandler(int signum) {
-    printf("\nStopping the audio stream...\n");
-    exit(0);
-}
-
+// Main function
 int main(void) {
     PaStream *stream;
     PaError err;
@@ -133,20 +138,12 @@ int main(void) {
     pullUpDnControl(outputB, PUD_UP);
 
     ssd1306_begin(SSD1306_SWITCHCAPVCC, SSD1306_I2C_ADDRESS);
-	ssd1306_clearDisplay();
-
-    char text[50];    // Buffer to hold the formatted string
-    // Format the string with the semitone shift value
-    snprintf(text, sizeof(text), "Semitones shift: %d\n", 0);
-
-    // Optional: Clear the display before writing
     ssd1306_clearDisplay();
-    ssd1306_setTextSize(2);
-    // Display the formatted text on the OLED
-    ssd1306_drawString(text);
 
-    // Update the OLED display to show the new text
-    ssd1306_display();
+    // Create SoundTouch instance and configure settings
+    data.soundTouch = SoundTouch_create();
+    SoundTouch_setSampleRate(data.soundTouch, SAMPLE_RATE);
+    SoundTouch_setChannels(data.soundTouch, 1);  // Set to 1 for mono audio
 
     // Initialize pitch shift parameters
     data.pitchShift = pitchShiftRatio;  // Start with no pitch shift
@@ -154,9 +151,6 @@ int main(void) {
     data.osamp = 4;  // Over-sampling factor
     data.sampleRate = SAMPLE_RATE;
     data.stop = 0;  // Initialize stop flag
-
-    // Set up signal handling for SIGINT
-    signal(SIGINT, signalHandler);
 
     // Initialize PortAudio
     err = Pa_Initialize();
@@ -184,7 +178,6 @@ int main(void) {
     // Run until the stop signal is received
     while (!data.stop) {
         updateSemitoneShift();  // Update semitone shift from rotary encoder
-        
     }
 
     // Stop the audio stream
@@ -200,7 +193,12 @@ int main(void) {
         fprintf(stderr, "PortAudio error: %s\n", Pa_GetErrorText(err));
         return -1;
     }
+
     // Terminate PortAudio
     Pa_Terminate();
+
+    // Clean up SoundTouch instance
+    SoundTouch_destroy(data.soundTouch);
+
     return 0;
 }

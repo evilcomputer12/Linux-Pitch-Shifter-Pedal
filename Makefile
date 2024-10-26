@@ -1,20 +1,22 @@
-# Makefile for pitch_shifter project
-
 CC = gcc
-CFLAGS = -Wall -lm -lportaudio -lwiringPi -lwiringPiDev
+CXX = g++
+CFLAGS = -Wall -I./include -lm -lwiringPi -lportaudio
+
+# Link libSoundTouch.a from the libs directory and the C++ standard library
+LDFLAGS = ./libs/libSoundTouch.a -lstdc++
+
+SRC = main.c soundtouch_wrapper.cpp ssd1306_i2c.c
+OBJ = main.o soundtouch_wrapper.o ssd1306_i2c.o
+
 TARGET = pitch_shifter
-SRCS = main.c ssd1306_i2c.c
-OBJS = $(SRCS:.c=.o)
 
 all: $(TARGET)
 
-$(TARGET): $(OBJS)
-	$(CC) $(OBJS) -o $(TARGET) $(CFLAGS)
+%.o: %.cpp
+	$(CXX) -c -o $@ $< $(CFLAGS)
 
-%.o: %.c
-	$(CC) -c $< -o $@
+$(TARGET): $(OBJ)
+	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
 clean:
-	rm -f $(OBJS) $(TARGET)
-
-.PHONY: all clean
+	rm -f $(OBJ) $(TARGET)
